@@ -18,6 +18,7 @@ from data_loaders.humanml.utils.plot_script import plot_3d_motion
 import shutil
 from data_loaders.tensors import collate
 from moviepy.editor import clips_array
+from utils.export_vrm_json import write_vrm_motion_json
 
 
 def main(args=None):
@@ -243,6 +244,25 @@ def main(args=None):
                                                          skeleton, motion, dataset=args.dataset, title=caption, 
                                                          fps=fps, gt_frames=gt_frames)
             rep_files.append(animation_save_path)
+
+            # Export motion JSON for three-vrm (first sample & repetition by default)
+            if sample_i == 0 and rep_i == 0:
+                # motion: (T, J, 3) in meters
+                try:
+                    if args.vrm_motion_path:
+                        vrm_motion_path = args.vrm_motion_path
+                        vrm_motion_dir = os.path.dirname(vrm_motion_path)
+                        if vrm_motion_dir:
+                            os.makedirs(vrm_motion_dir, exist_ok=True)
+                    else:
+                        vrm_motion_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'three-vrm', 'public', 'motions')
+                        os.makedirs(vrm_motion_dir, exist_ok=True)
+                        vrm_motion_path = os.path.join(vrm_motion_dir, 'last_motion.json')
+
+                    write_vrm_motion_json(vrm_motion_path, motion, fps, args.dataset)
+                    print(f"Exported VRM motion JSON to [{vrm_motion_path}]")
+                except Exception as e:
+                    print(f"[WARN] Failed exporting VRM motion JSON: {e}")
 
     save_multiple_samples(out_path, {'all': all_file_template}, animations, fps, max(list(all_lengths) + [n_frames]))
 

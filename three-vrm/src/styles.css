@@ -1,0 +1,152 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.ui-wrapper {
+  pointer-events: none;
+}
+
+.ui-panel {
+  pointer-events: auto;
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  width: min(360px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: 1rem 1.2rem;
+  border-radius: 12px;
+  background: rgba(12, 12, 16, 0.78);
+  color: #f7f7ff;
+  font-family: 'Inter', sans-serif;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.prompt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.prompt-form label {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #b9c0ff;
+}
+
+.prompt-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 96px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(23, 23, 32, 0.9);
+  color: #f7f7ff;
+  font-size: 0.95rem;
+  padding: 0.75rem;
+  font-family: inherit;
+}
+
+.prompt-form textarea:focus {
+  outline: none;
+  border-color: #6e8bff;
+  box-shadow: 0 0 0 2px rgba(110, 139, 255, 0.3);
+}
+
+.prompt-form button {
+  align-self: flex-start;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #6e8bff, #a972ff);
+  color: white;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.prompt-form button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.prompt-form button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(110, 139, 255, 0.35);
+}
+
+.status {
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: #d0d4ff;
+}
+
+.speech-block {
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+}
+
+.speech-block h3 {
+  margin: 0 0 0.4rem 0;
+  font-size: 1rem;
+  color: #9db1ff;
+}
+
+.speech-block p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.segments h4 {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.95rem;
+  color: #9db1ff;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.segments ol {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.segments li {
+  list-style: decimal;
+  color: #cfd6ff;
+  font-size: 0.9rem;
+  padding-left: 0.25rem;
+}
+
+.segments li.active {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.segment-desc {
+  margin-bottom: 0.25rem;
+}
+
+.segment-meta {
+  font-size: 0.78rem;
+  color: rgba(207, 214, 255, 0.8);
+}
