@@ -11,10 +11,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-try:
-    from openai import OpenAI
-except ImportError as exc:  # pragma: no cover - guidance message if package missing
-    raise RuntimeError("openai package is required for the motion server. Install with `pip install openai`." ) from exc
+
+from types import SimpleNamespace
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -58,6 +56,55 @@ class ConversationResponse(BaseModel):
     speech_text: str
     session_id: str
     segments: List[SegmentResponse]
+
+
+# Lightweight HTTP client for OpenAI Responses API (no openai package)
+import urllib.request
+import urllib.error
+
+
+def _to_obj(x):
+    if isinstance(x, dict):
+        return SimpleNamespace(**{k: _to_obj(v) for k, v in x.items()})
+    if isinstance(x, list):
+        return [_to_obj(v) for v in x]
+    return x
+
+
+class _ResponsesHTTPClient:
+    def __init__(self, api_key: str, base_url: str):
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+
+    def create(self, **kwargs):
+        data = json.dumps(kwargs).encode("utf-8")
+        req = urllib.request.Request(
+            self.base_url + "/responses",
+            data=data,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                body = resp.read().decode("utf-8")
+            return _to_obj(json.loads(body))
+        except urllib.error.HTTPError as e:
+            err = e.read().decode("utf-8") if hasattr(e, "read") else str(e)
+            raise RuntimeError(f"OpenAI API error: {err}") from e
+
+
+class _HTTPClient:
+    def __init__(self, api_key: str, base_url: str):
+        self.responses = _ResponsesHTTPClient(api_key, base_url)
+
+
+# Override client to use HTTP-based OpenAI API
+if OPENAI_API_KEY:
+    client = _HTTPClient(OPENAI_API_KEY, os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"))
 
 
 PLAN_SCHEMA = {
