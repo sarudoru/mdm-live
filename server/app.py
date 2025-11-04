@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import subprocess
@@ -5,7 +7,7 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,8 +25,6 @@ LLM_MODEL = os.environ.get("OPENAI_MOTION_MODEL", "gpt-4o-mini")
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-
 app = FastAPI(title="MDM Motion Conversation API")
 
 app.add_middleware(
@@ -38,7 +38,7 @@ app.add_middleware(
 
 class PromptRequest(BaseModel):
     prompt: str = Field(..., description="Conversation prompt describing what the character should say and do")
-    model_path: str | None = Field(None, description="Override default motion model checkpoint path")
+    model_path: Optional[str] = Field(None, description="Override default motion model checkpoint path")
 
 
 class MovementPlanItem(BaseModel):
@@ -103,44 +103,44 @@ class _HTTPClient:
 
 
 # Override client to use HTTP-based OpenAI API
+client: Optional[_HTTPClient] = None
 if OPENAI_API_KEY:
     client = _HTTPClient(OPENAI_API_KEY, os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1"))
 
 
-PLAN_SCHEMA = {
-    "name": "motion_plan",
-    "schema": {
-        "type": "object",
-        "properties": {
-            "speech_text": {
-                "type": "string",
-                "description": "What the character should say aloud."
-            },
-            "movements": {
-                "type": "array",
-                "description": "Ordered list of motion segments describing the body movement during the speech.",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "description": {
-                            "type": "string",
-                            "description": "Short instruction for the body movement"
-                        },
-                        "duration_seconds": {
-                            "type": "number",
-                            "minimum": 1,
-                            "maximum": 9.5,
-                            "description": "Approximate duration of the movement in seconds"
-                        }
-                    },
-                    "required": ["description", "duration_seconds"]
-                },
-                "minItems": 1,
-                "maxItems": 6
-            }
+PLAN_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "speech_text": {
+            "type": "string",
+            "description": "What the character should say aloud."
         },
-        "required": ["speech_text", "movements"]
-    }
+        "movements": {
+            "type": "array",
+            "description": "Ordered list of motion segments describing the body movement during the speech.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Short instruction for the body movement"
+                    },
+                    "duration_seconds": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 9.5,
+                        "description": "Approximate duration of the movement in seconds"
+                    }
+                },
+                "required": ["description", "duration_seconds"],
+                "additionalProperties": False
+            },
+            "minItems": 1,
+            "maxItems": 6
+        }
+    },
+    "required": ["speech_text", "movements"],
+    "additionalProperties": False
 }
 
 
@@ -162,22 +162,41 @@ def call_motion_planner(prompt: str) -> tuple[str, List[MovementPlanItem]]:
             {
                 "role": "system",
                 "content": [
-                    {"type": "text", "text": SYSTEM_PROMPT}
+                    {"type": "input_text", "text": SYSTEM_PROMPT}
                 ],
             },
             {
                 "role": "user",
-                "content": [{"type": "text", "text": prompt}]
+                "content": [{"type": "input_text", "text": prompt}]
             },
         ],
-        response_format={"type": "json_schema", "json_schema": PLAN_SCHEMA},
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "motion_plan",
+                "schema": PLAN_JSON_SCHEMA
+                },
+            },
         max_output_tokens=800,
     )
 
     try:
-        content = response.output[0].content[0].text  # type: ignore[attr-defined]
-        parsed = json.loads(content)
-    except (KeyError, IndexError, json.JSONDecodeError) as exc:
+        output_blocks = getattr(response, "output", [])
+        text_payload: Optional[str] = None
+        for block in output_blocks:
+            for item in getattr(block, "content", []):
+                candidate = getattr(item, "text", None)
+                if candidate:
+                    text_payload = candidate
+                    break
+            if text_payload:
+                break
+
+        if not text_payload:
+            raise ValueError("No text content returned from LLM response")
+
+        parsed = json.loads(text_payload)
+    except (json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=500, detail=f"Failed to parse LLM response: {exc}")
 
     speech_text = parsed.get("speech_text", "").strip()
@@ -214,8 +233,18 @@ def run_generate_segment(description: str, duration: float, segment_idx: int, se
     ]
 
     env = os.environ.copy()
-    process = subprocess.run(cmd, capture_output=True, text=True)
+    # Ensure PYTHONPATH includes project root so utils package imports resolve
+    pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{BASE_DIR}:{pythonpath}" if pythonpath else str(BASE_DIR)
+    
+    # Debug: log which Python and PYTHONPATH we're using
+    print(f"[DEBUG] Python executable: {sys.executable}")
+    print(f"[DEBUG] PYTHONPATH: {env['PYTHONPATH']}")
+    print(f"[DEBUG] Working directory: {BASE_DIR}")
+    
+    process = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR), env=env)
     if process.returncode != 0:
+        print(f"[DEBUG] Command failed. stderr:\n{process.stderr}")
         raise HTTPException(status_code=500, detail=f"Generation failed: {process.stderr}")
 
     if not vrm_motion_path.exists():

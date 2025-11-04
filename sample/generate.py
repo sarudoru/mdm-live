@@ -3,6 +3,14 @@
 Generate a large batch of image samples from a model and save them as a large
 numpy array. This can be used to produce samples for FID evaluation.
 """
+import sys
+from pathlib import Path
+
+# Ensure project root is in sys.path for utils imports
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from utils.fixseed import fixseed
 import os
 import numpy as np
@@ -14,10 +22,15 @@ from utils.sampler_util import ClassifierFreeSampleModel, AutoRegressiveSampler
 from data_loaders.get_data import get_dataset_loader
 from data_loaders.humanml.scripts.motion_process import recover_from_ric, get_target_location, sample_goal
 import data_loaders.humanml.utils.paramUtil as paramUtil
-from data_loaders.humanml.utils.plot_script import plot_3d_motion
+try:
+    from data_loaders.humanml.utils.plot_script import plot_3d_motion
+    from moviepy.editor import clips_array
+    HAS_VIDEO = True
+except ImportError:
+    HAS_VIDEO = False
+    print("[WARN] moviepy not installed; video generation will be skipped")
 import shutil
 from data_loaders.tensors import collate
-from moviepy.editor import clips_array
 from utils.export_vrm_json import write_vrm_motion_json
 
 
@@ -240,10 +253,13 @@ def main(args=None):
             save_file = sample_file_template.format(sample_i, rep_i)
             animation_save_path = os.path.join(out_path, save_file)
             gt_frames = np.arange(args.context_len) if args.context_len > 0 and not args.autoregressive else []
-            animations[sample_i, rep_i] = plot_3d_motion(animation_save_path, 
-                                                         skeleton, motion, dataset=args.dataset, title=caption, 
-                                                         fps=fps, gt_frames=gt_frames)
-            rep_files.append(animation_save_path)
+            if HAS_VIDEO:
+                animations[sample_i, rep_i] = plot_3d_motion(animation_save_path, 
+                                                             skeleton, motion, dataset=args.dataset, title=caption, 
+                                                             fps=fps, gt_frames=gt_frames)
+                rep_files.append(animation_save_path)
+            else:
+                animations[sample_i, rep_i] = None
 
             # Export motion JSON for three-vrm (first sample & repetition by default)
             if sample_i == 0 and rep_i == 0:
@@ -264,7 +280,10 @@ def main(args=None):
                 except Exception as e:
                     print(f"[WARN] Failed exporting VRM motion JSON: {e}")
 
-    save_multiple_samples(out_path, {'all': all_file_template}, animations, fps, max(list(all_lengths) + [n_frames]))
+    if HAS_VIDEO:
+        save_multiple_samples(out_path, {'all': all_file_template}, animations, fps, max(list(all_lengths) + [n_frames]))
+    else:
+        print("[INFO] Skipping video generation (moviepy not available)")
 
     abs_path = os.path.abspath(out_path)
     print(f'[Done] Results are at [{abs_path}]')
