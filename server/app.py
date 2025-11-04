@@ -19,11 +19,11 @@ from types import SimpleNamespace
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 THREE_VRM_PUBLIC_MOTIONS = BASE_DIR / "three-vrm" / "public" / "motions"
-DEFAULT_MODEL_PATH = os.environ.get("MDM_MODEL_PATH", "")
+DEFAULT_MODEL_PATH = os.environ.get("MDM_MODEL_PATH", "./save/model000200000.pt")
 DEFAULT_MODEL_GUIDANCE = float(os.environ.get("MDM_GUIDANCE_PARAM", "2.5"))
 LLM_MODEL = os.environ.get("OPENAI_MOTION_MODEL", "gpt-4o-mini")
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 app = FastAPI(title="MDM Motion Conversation API")
 
