@@ -16,6 +16,13 @@ from pydantic import BaseModel, Field
 
 from types import SimpleNamespace
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 THREE_VRM_PUBLIC_MOTIONS = BASE_DIR / "three-vrm" / "public" / "motions"
