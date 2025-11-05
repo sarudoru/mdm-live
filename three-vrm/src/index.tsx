@@ -98,6 +98,7 @@ const TRACKED_BONES: VRMHumanBoneName[] = [
 ]
 
 const tempQuat = new Quaternion()
+const tempQuat2 = new Quaternion()
 const tempVec = new Vector3()
 const tempVec2 = new Vector3()
 
@@ -107,6 +108,7 @@ const Avatar: React.FC = () => {
   const avatar = useRef<VRM | null>(null)
   const hipsRawRef = useRef<Object3D | null>(null)
   const boneMapRef = useRef<Partial<Record<VRMHumanBoneName, Object3D>>>({})
+  const restQuatRef = useRef<Partial<Record<VRMHumanBoneName, Quaternion>>>({})
 
   const [prompt, setPrompt] = useState('')
   const [speechText, setSpeechText] = useState('')
@@ -171,6 +173,8 @@ const Avatar: React.FC = () => {
           const node = vrm.humanoid.getNormalizedBoneNode(boneName)
           if (node) {
             boneMap[boneName] = node
+            // Cache rest-pose local rotation so we can apply motion relative to it
+            restQuatRef.current[boneName] = node.quaternion.clone()
           }
         })
         boneMapRef.current = boneMap
@@ -221,8 +225,17 @@ const Avatar: React.FC = () => {
       if (!bone) continue
       const quat = rots[i]
       if (!quat || quat.length < 4) continue
+      // Convert from [w,x,y,z] to THREE order [x,y,z,w]
       tempQuat.set(quat[1], quat[2], quat[3], quat[0])
-      bone.quaternion.copy(tempQuat)
+
+      // Apply relative to the VRM rest-pose local rotation to account for rig pre-rotations
+      const rest = restQuatRef.current[boneName]
+      if (rest) {
+        tempQuat2.copy(rest).multiply(tempQuat) // new = rest * motion
+        bone.quaternion.copy(tempQuat2)
+      } else {
+        bone.quaternion.copy(tempQuat)
+      }
     }
   }, [])
 
