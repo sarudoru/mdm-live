@@ -8,6 +8,23 @@ import { VRM, VRMLoaderPlugin, VRMHumanBoneName } from '@pixiv/three-vrm'
 import { Object3D, Quaternion, Vector3 } from 'three'
 import { useControls } from 'leva'
 
+// Lightweight redirect for dev server: if user opens /motion-test on :3000,
+// send them to the static test page that lives in /public.
+if (typeof window !== 'undefined') {
+  const p = window.location.pathname.replace(/\/$/, '')
+  if (p === '/motion-test') {
+    const { origin } = window.location
+    // If we're on the React dev server (likely :3000), redirect to the FastAPI backend (:8000)
+    if (/:(3000)$/.test(origin)) {
+      const target = origin.replace(/:3000$/, ':8000') + '/motion-test'
+      window.location.replace(target)
+    } else {
+      // Otherwise, try local static fallback
+      window.location.replace('/motion-test.html')
+    }
+  }
+}
+
 type MotionFrame = {
   root_position: number[]
   rotations: number[][]
