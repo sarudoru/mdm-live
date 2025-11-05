@@ -9,8 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 
@@ -41,6 +43,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files for motion JSON files
+app.mount("/motions", StaticFiles(directory=str(THREE_VRM_PUBLIC_MOTIONS)), name="motions")
 
 
 class PromptRequest(BaseModel):
@@ -243,11 +248,7 @@ def run_generate_segment(description: str, duration: float, segment_idx: int, se
     # Ensure PYTHONPATH includes project root so utils package imports resolve
     pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{BASE_DIR}:{pythonpath}" if pythonpath else str(BASE_DIR)
-    
-    # Debug: log which Python and PYTHONPATH we're using
-    print(f"[DEBUG] Python executable: {sys.executable}")
-    print(f"[DEBUG] PYTHONPATH: {env['PYTHONPATH']}")
-    print(f"[DEBUG] Working directory: {BASE_DIR}")
+
     
     process = subprocess.run(cmd, capture_output=True, text=True, cwd=str(BASE_DIR), env=env)
     if process.returncode != 0:
@@ -286,3 +287,50 @@ async def conversation_endpoint(request: PromptRequest):
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.post("/api/upload-motion")
+async def upload_motion(file: UploadFile = File(...)):
+    """Upload a motion JSON file for testing."""
+    if not file.filename or not file.filename.endswith('.json'):
+        raise HTTPException(status_code=400, detail="Only JSON files are supported")
+    
+    # Create a test uploads directory
+    uploads_dir = THREE_VRM_PUBLIC_MOTIONS / "test-uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save the file with a unique name
+    unique_filename = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+    file_path = uploads_dir / unique_filename
+    
+    content = await file.read()
+    
+    # Validate it's valid JSON
+    try:
+        json.loads(content)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON file")
+    
+    with open(file_path, 'wb') as f:
+        f.write(content)
+    
+    motion_url = f"/motions/test-uploads/{unique_filename}"
+    return {"motion_url": motion_url, "filename": file.filename}
+
+
+@app.get("/motion-test", response_class=HTMLResponse)
+async def motion_test_page():
+    """Serve the motion test page."""
+    test_page_path = BASE_DIR / "three-vrm" / "public" / "motion-test.html"
+    if not test_page_path.exists():
+        raise HTTPException(status_code=404, detail="Test page not found")
+    return FileResponse(test_page_path)
+
+
+@app.get("/modelA.vrm")
+async def serve_vrm_model():
+    """Serve the VRM model file for the motion test page."""
+    vrm_path = BASE_DIR / "three-vrm" / "public" / "modelA.vrm"
+    if not vrm_path.exists():
+        raise HTTPException(status_code=404, detail="VRM model not found")
+    return FileResponse(vrm_path, media_type="application/octet-stream")
