@@ -17,12 +17,13 @@ body,
 
 .ui-panel {
   pointer-events: auto;
-  position: absolute;
+  position: fixed;
   top: 1rem;
   left: 1rem;
   width: min(360px, calc(100vw - 2rem));
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
+  z-index: 1000;
   padding: 1rem 1.2rem;
   border-radius: 12px;
   background: rgba(12, 12, 16, 0.78);
