@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BVH Motion Test - MDM Live</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100vh; display: flex; background: #121420; color: #f5f7ff; font-family: Inte    stopBtn.addEventListener('click', () => { mixers.forEach((m) => { m.time = 0 }) })
+
+    speedInput.addEventListener('input', () => { mixers.forEach((m) => m.timeScale = parseFloat(speedInput.value)) })
+
+    showHelperCheckbox.addEventListener('change', () => {
+      if (bvhHelper) bvhHelper.visible = showHelperCheckbox.checked
+    })
+
+  </script>stem-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif; }
+    #sidebar { width: 360px; background: rgba(18, 20, 32, 0.9); border-right: 1px solid rgba(255,255,255,0.06); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+    #canvas { flex: 1; position: relative; }
+    h1 { margin: 0; font-size: 18px; color: #cdd7ff; }
+    .muted { color: #9aa3c7; font-size: 13px; }
+    .dropzone { border: 2px dashed #5e73ff; border-radius: 10px; padding: 18px; text-align: center; background: rgba(94, 115, 255, 0.06); cursor: pointer; }
+    .dropzone.active { background: rgba(94, 115, 255, 0.15); }
+    .row { display: flex; gap: 10px; align-items: center; }
+    .label { font-size: 12px; color: #b9c2f7; width: 105px; }
+    input[type="range"] { width: 100%; }
+    button { padding: 8px 10px; border-radius: 8px; border: none; background: linear-gradient(135deg, #6e8bff, #a972ff); color: white; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .stack { display: flex; flex-direction: column; gap: 10px; }
+    .well { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px; font-size: 13px; color: #cbd3ff; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; }
+    .hint { color: #93a1ee; font-size: 12px; }
+    #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.35); }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h1>BVH Motion Test</h1>
+    <div class="muted">Upload a .bvh file to drive the VRM avatar (no backend required).</div>
+
+    <div id="drop" class="dropzone">Drop BVH here or click to choose<input id="file" type="file" accept=".bvh" style="display:none"/></div>
+
+    <div class="well stack">
+      <div class="row"><div class="label">Status</div><div id="status" class="mono">Waiting for BVH…</div></div>
+      <div class="row"><div class="label">Frames</div><div id="infoFrames" class="mono">-</div></div>
+      <div class="row"><div class="label">Frame Time</div><div id="infoFrameTime" class="mono">-</div></div>
+    </div>
+
+    <div class="well stack">
+      <div class="row"><div class="label">Scale</div><input id="scale" type="range" min="0.2" max="2.0" step="0.01" value="1.0"/></div>
+      <div class="row"><div class="label">Speed</div><input id="speed" type="range" min="0.25" max="2.5" step="0.05" value="1.0"/></div>
+      <div class="row" style="gap:8px">
+        <button id="play" disabled>Play</button>
+        <button id="pause" disabled>Pause</button>
+        <button id="stop" disabled>Reset</button>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input id="showHelper" type="checkbox"/> Show BVH skeleton
+        </label>
+      </div>
+      <div class="hint">Tip: If the motion looks too big/small, adjust Scale. Most BVH files are in meters but some are in centimeters.</div>
+    </div>
+
+    <div class="well">
+      <div class="hint">Bone Mapping</div>
+      <pre class="mono" id="mappingPreview" style="white-space: pre-wrap"></pre>
+    </div>
+
+    <div class="well stack">
+      <div class="hint">Coordinate Adjustments</div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input id="flipPosX" type="checkbox"/> Flip Position X
+        </label>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input id="flipPosY" type="checkbox"/> Flip Position Y
+        </label>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input id="flipPosZ" type="checkbox"/> Flip Position Z
+        </label>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input id="flipRotX" type="checkbox"/> Flip Rotation X
+        </label>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input id="flipRotY" type="checkbox"/> Flip Rotation Y
+        </label>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input id="flipRotZ" type="checkbox"/> Flip Rotation Z
+        </label>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input id="flipRotW" type="checkbox"/> Flip Rotation W
+        </label>
+      </div>
+    </div>
+
+    <div class="well stack">
+      <div class="hint">Root Rotation Offset (degrees)</div>
+      <div class="row"><div class="label">X:</div><input id="rootRotX" type="number" value="0" step="15" style="width:80px;padding:4px;"/></div>
+      <div class="row"><div class="label">Y:</div><input id="rootRotY" type="number" value="0" step="15" style="width:80px;padding:4px;"/></div>
+      <div class="row"><div class="label">Z:</div><input id="rootRotZ" type="number" value="0" step="15" style="width:80px;padding:4px;"/></div>
+    </div>
+
+    <div class="well stack">
+      <div class="hint">Position Mode</div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="posMode" id="posLocal" value="local"/> Local (no XYZ translation)
+        </label>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="posMode" id="posGlobal" value="global" checked/> Global (allow XYZ movement)
+        </label>
+      </div>
+    </div>
+
+    <div class="well">
+      <div class="hint">Current Root Position</div>
+      <pre class="mono" id="positionDebug" style="white-space: pre-wrap">X: 0.00, Y: 0.00, Z: 0.00</pre>
+    </div>
+  </div>
+  <div id="canvas">
+    <div id="loading">Loading VRM…</div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.167.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.0/examples/jsm/",
+        "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.1.5/lib/three-vrm.module.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three'
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+    import { BVHLoader } from 'three/addons/loaders/BVHLoader.js'
+    import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js'
+    import { VRM, VRMLoaderPlugin, VRMHumanBoneName } from '@pixiv/three-vrm'
+
+    // --- Scene setup ---
+    const container = document.getElementById('canvas')
+    const scene = new THREE.Scene()
+    scene.background = new THREE.Color(0x141724)
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100)
+    camera.position.set(0, 1.5, 3)
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    renderer.setSize(container.clientWidth, container.clientHeight)
+    renderer.setPixelRatio(window.devicePixelRatio)
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    container.appendChild(renderer.domElement)
+
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.target.set(0, 1, 0)
+    controls.enableDamping = true
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.8))
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9)
+    dir.position.set(2, 4, 2)
+    scene.add(dir)
+
+    const grid = new THREE.GridHelper(10, 10, 0x404060, 0x20202a)
+    scene.add(grid)
+
+    window.addEventListener('resize', () => {
+      camera.aspect = container.clientWidth / container.clientHeight
+      camera.updateProjectionMatrix()
+      renderer.setSize(container.clientWidth, container.clientHeight)
+    })
+
+    // --- UI elements ---
+    const drop = document.getElementById('drop')
+    const file = document.getElementById('file')
+    const statusEl = document.getElementById('status')
+    const infoFramesEl = document.getElementById('infoFrames')
+    const infoFrameTimeEl = document.getElementById('infoFrameTime')
+    const loadingEl = document.getElementById('loading')
+
+    const playBtn = document.getElementById('play')
+    const pauseBtn = document.getElementById('pause')
+    const stopBtn = document.getElementById('stop')
+
+    const scaleInput = document.getElementById('scale')
+    const speedInput = document.getElementById('speed')
+    const showHelperCheckbox = document.getElementById('showHelper')
+
+    const mappingPreview = document.getElementById('mappingPreview')
+
+    // Coordinate adjustment controls
+    const flipPosX = document.getElementById('flipPosX')
+    const flipPosY = document.getElementById('flipPosY')
+    const flipPosZ = document.getElementById('flipPosZ')
+    const flipRotX = document.getElementById('flipRotX')
+    const flipRotY = document.getElementById('flipRotY')
+    const flipRotZ = document.getElementById('flipRotZ')
+    const flipRotW = document.getElementById('flipRotW')
+    const rootRotX = document.getElementById('rootRotX')
+    const rootRotY = document.getElementById('rootRotY')
+    const rootRotZ = document.getElementById('rootRotZ')
+    const posGlobal = document.getElementById('posGlobal')
+    const posLocal = document.getElementById('posLocal')
+    const positionDebug = document.getElementById('positionDebug')
+
+    // --- VRM loading ---
+    let vrm = null
+    let vrmMixer = null
+    let bvhSkeleton = null
+    let bvhClip = null
+    let bvhRestPose = {} // Store BVH T-pose: { boneName: { local: Quaternion, world: Quaternion } }
+    let vrmRestPose = {} // Store VRM T-pose: { boneName: { local: Quaternion, world: Quaternion } }
+    let bvhToVrmMap = {} // Map BVH bone names to VRM bone objects
+
+    async function loadVRM() {
+      const loader = new GLTFLoader()
+      loader.register((parser) => new VRMLoaderPlugin(parser))
+      return new Promise((resolve, reject) => {
+        loader.load('/modelA.vrm', (gltf) => {
+          vrm = gltf.userData.vrm
+          scene.add(vrm.scene)
+          const hips = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Hips)
+          if (hips) hips.rotation.y = Math.PI // face camera
+          loadingEl.style.display = 'none'
+          resolve()
+        }, undefined, reject)
+      })
+    }
+
+    await loadVRM()
+
+    // Store VRM T-pose rest rotations for retargeting
+    function captureVRMRestPose() {
+      const humanoid = vrm.humanoid
+      Object.values(VRMHumanBoneName).forEach((boneName) => {
+        const node = humanoid.getNormalizedBoneNode(boneName)
+        if (!node) return
+        
+        // For normalized bones, rest rotation is identity in most cases
+        // We'll use the initial state as-is
+        const localRest = node.quaternion.clone()
+        
+        // World rest rotation
+        const worldRest = new THREE.Quaternion()
+        node.getWorldQuaternion(worldRest)
+        
+        vrmRestPose[boneName] = { 
+          local: localRest.clone(), 
+          world: worldRest.clone(),
+          node: node
+        }
+      })
+      console.log('Captured VRM rest pose for', Object.keys(vrmRestPose).length, 'bones')
+    }
+    captureVRMRestPose()
+
+    // Find a skinned mesh under VRM for the mixer target
+    function findFirstSkinnedMesh(root) {
+      let found = null
+      root.traverse((obj) => {
+        if (!found && obj.isSkinnedMesh) found = obj
+      })
+      return found
+    }
+
+    const targetSkinned = findFirstSkinnedMesh(vrm.scene)
+    if (!targetSkinned) {
+      statusEl.textContent = 'No skinned mesh found in VRM'
+    }
+
+    vrmMixer = new THREE.AnimationMixer(vrm.scene)
+
+    // --- BVH handling ---
+    const bvhLoader = new BVHLoader()
+    let bvhHelper = null
+
+    async function handleBVHFile(bvhText, name = 'motion') {
+      // Parse BVH
+      const result = bvhLoader.parse(bvhText)
+      bvhSkeleton = result.skeleton
+      bvhClip = result.clip
+
+      // Log BVH joint names for debugging
+      const bvhJointNames = []
+      bvhSkeleton.bones.forEach((bone) => bvhJointNames.push(bone.name))
+      console.log('BVH joint names:', bvhJointNames)
+
+      // Scale source skeleton hierarchy
+      const scale = parseFloat(scaleInput.value)
+      bvhSkeleton.bones[0].traverse((b) => {
+        b.position.multiplyScalar(scale)
+      })
+
+      // Create a visible helper for debug
+      if (bvhHelper) scene.remove(bvhHelper)
+      bvhHelper = new THREE.SkeletonHelper(bvhSkeleton.bones[0])
+      bvhHelper.visible = showHelperCheckbox.checked
+      scene.add(bvhHelper)
+
+      // Build BVH bone name → VRM bone mapping
+      bvhToVrmMap = {}
+      const nameMapping = {
+        'Hips': VRMHumanBoneName.Hips,
+        'LeftUpLeg': VRMHumanBoneName.LeftUpperLeg,
+        'LeftLeg': VRMHumanBoneName.LeftLowerLeg,
+        'LeftFoot': VRMHumanBoneName.LeftFoot,
+        'LeftToe': VRMHumanBoneName.LeftToes,
+        'RightUpLeg': VRMHumanBoneName.RightUpperLeg,
+        'RightLeg': VRMHumanBoneName.RightLowerLeg,
+        'RightFoot': VRMHumanBoneName.RightFoot,
+        'RightToe': VRMHumanBoneName.RightToes,
+        'Spine': VRMHumanBoneName.Spine,
+        'Spine1': VRMHumanBoneName.Chest,
+        'Spine2': VRMHumanBoneName.UpperChest,
+        'Neck': VRMHumanBoneName.Neck,
+        'Head': VRMHumanBoneName.Head,
+        'LeftShoulder': VRMHumanBoneName.LeftShoulder,
+        'LeftArm': VRMHumanBoneName.LeftUpperArm,
+        'LeftForeArm': VRMHumanBoneName.LeftLowerArm,
+        'LeftHand': VRMHumanBoneName.LeftHand,
+        'RightShoulder': VRMHumanBoneName.RightShoulder,
+        'RightArm': VRMHumanBoneName.RightUpperArm,
+        'RightForeArm': VRMHumanBoneName.RightLowerArm,
+        'RightHand': VRMHumanBoneName.RightHand,
+      }
+
+      Object.entries(nameMapping).forEach(([bvhName, vrmBoneName]) => {
+        const bvhBone = bvhSkeleton.bones.find(b => b.name === bvhName)
+        const vrmBone = vrm.humanoid.getNormalizedBoneNode(vrmBoneName)
+        const vrmRaw = vrm.humanoid.getRawBoneNode(vrmBoneName)
+        if (bvhBone && vrmBone) {
+          bvhToVrmMap[bvhName] = { bvhBone, vrmBone, vrmRaw, vrmBoneName }
+        }
+      })
+
+      // Capture BVH T-pose rest rotations (AFTER first animation update to get actual rest state)
+      // Create a mixer to apply first frame
+      const tempMixer = new THREE.AnimationMixer(bvhSkeleton.bones[0])
+      const tempAction = tempMixer.clipAction(bvhClip)
+      tempAction.time = 0
+      tempAction.play()
+      tempMixer.update(0)
+      tempAction.stop()
+
+      bvhRestPose = {}
+      Object.keys(bvhToVrmMap).forEach((bvhName) => {
+        const { bvhBone } = bvhToVrmMap[bvhName]
+        const localRest = bvhBone.quaternion.clone()
+        const worldRest = new THREE.Quaternion()
+        bvhBone.getWorldQuaternion(worldRest)
+        bvhRestPose[bvhName] = { local: localRest, world: worldRest }
+      })
+
+      console.log('Captured BVH rest pose for', Object.keys(bvhRestPose).length, 'bones')
+
+      // Show mapping preview
+      const mappingLines = Object.entries(bvhToVrmMap).map(([k, v]) => `${k} → ${v.vrmBone.name}`)
+      mappingPreview.textContent = mappingLines.join('\n')
+
+      console.log('BVH → VRM mapping:', Object.keys(bvhToVrmMap).length, 'bones')
+
+      // Info
+      infoFramesEl.textContent = `${bvhClip.tracks[0]?.times.length || 0}`
+      infoFrameTimeEl.textContent = `${(result.frameTime || 1/30).toFixed(3)} s`
+      statusEl.textContent = `Loaded: ${name}`
+
+      // Enable controls
+      playBtn.disabled = false
+      pauseBtn.disabled = false
+      stopBtn.disabled = false
+
+      // Start playback
+      currentTime = 0
+      isPlaying = true
+    }    const mixers = []
+    const clock = new THREE.Clock()
+    let currentTime = 0
+    let isPlaying = false
+
+    // Apply BVH animation frame to VRM using proper retargeting formula
+    function applyBVHFrame(time) {
+      if (!bvhClip || !bvhSkeleton) return
+
+      // Sample BVH animation at time
+      Object.keys(bvhToVrmMap).forEach((bvhName) => {
+        const { bvhBone, vrmBone, vrmBoneName } = bvhToVrmMap[bvhName]
+        
+        // Find rotation track for this BVH bone
+        const trackName = `${bvhBone.name}.quaternion`
+        const track = bvhClip.tracks.find(t => t.name === trackName)
+        if (!track) return
+
+        // Sample BVH rotation at current time (simple nearest-frame sampling)
+        const times = track.times
+        const values = track.values
+        
+        // Find closest frame
+        let idx = 0
+        let minDiff = Math.abs(time - times[0])
+        for (let i = 1; i < times.length; i++) {
+          const diff = Math.abs(time - times[i])
+          if (diff < minDiff) {
+            minDiff = diff
+            idx = i
+          }
+        }
+
+        // Get BVH rotation at this frame
+        const bvhRotation = new THREE.Quaternion(
+          values[idx * 4],
+          values[idx * 4 + 1] * -1,
+          values[idx * 4 + 2],
+          values[idx * 4 + 3] * -1
+        )
+
+        // Apply root rotation offset (for Hips/root bone)
+        if (bvhName === 'Hips') {
+          const offsetX = parseFloat(rootRotX.value) * Math.PI / 180
+          const offsetY = parseFloat(rootRotY.value) * Math.PI / 180
+          const offsetZ = parseFloat(rootRotZ.value) * Math.PI / 180
+          const offsetQuat = new THREE.Quaternion()
+          offsetQuat.setFromEuler(new THREE.Euler(offsetX, offsetY, offsetZ, 'XYZ'))
+          bvhRotation.premultiply(offsetQuat)
+        }
+
+        // Simplified approach: For normalized VRM bones, we can often apply directly
+        // with rest-pose compensation
+        const vrmRest = vrmRestPose[vrmBoneName]
+        if (!vrmRest) {
+          // No rest pose data, apply directly
+          vrmBone.quaternion.copy(bvhRotation)
+          return
+        }
+
+        // Apply relative to VRM rest pose
+        const result = new THREE.Quaternion()
+        result.copy(vrmRest.local).multiply(bvhRotation)
+        vrmBone.quaternion.copy(result)
+      })
+
+      // Handle hips position (with scaling and flipping)
+      if (bvhToVrmMap['Hips'] && posGlobal.checked) {
+        const { bvhBone, vrmRaw } = bvhToVrmMap['Hips']
+        const posTrackName = `${bvhBone.name}.position`
+        const posTrack = bvhClip.tracks.find(t => t.name === posTrackName)
+        if (posTrack && vrmRaw) {
+          const times = posTrack.times
+          const values = posTrack.values
+          
+          let idx = 0
+          let minDiff = Math.abs(time - times[0])
+          for (let i = 1; i < times.length; i++) {
+            const diff = Math.abs(time - times[i])
+            if (diff < minDiff) {
+              minDiff = diff
+              idx = i
+            }
+          }
+
+          const scale = parseFloat(scaleInput.value)
+          vrmRaw.position.set(
+            values[idx * 3] * scale * (flipPosX.checked ? -1 : 1),
+            values[idx * 3 + 1] * scale * (flipPosY.checked ? -1 : 1),
+            values[idx * 3 + 2] * scale * (flipPosZ.checked ? -1 : 1)
+          )
+
+          // Update position debug display
+          positionDebug.textContent = `X: ${vrmRaw.position.x.toFixed(2)}, Y: ${vrmRaw.position.y.toFixed(2)}, Z: ${vrmRaw.position.z.toFixed(2)}`
+        }
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate)
+      const dt = clock.getDelta()
+      
+      if (isPlaying && bvhClip) {
+        const speed = parseFloat(speedInput.value)
+        currentTime += dt * speed
+        
+        // Loop animation
+        if (currentTime > bvhClip.duration) {
+          currentTime = 0
+        }
+        
+        applyBVHFrame(currentTime)
+      }
+      
+      mixers.forEach((m) => m.update(dt * parseFloat(speedInput.value)))
+      if (vrm) vrm.update(dt)
+      controls.update()
+      renderer.render(scene, camera)
+    }
+    animate()
+
+    // --- UI events ---
+    drop.addEventListener('click', () => file.click())
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('active') })
+    drop.addEventListener('dragleave', () => drop.classList.remove('active'))
+    drop.addEventListener('drop', (e) => {
+      e.preventDefault(); drop.classList.remove('active')
+      const f = e.dataTransfer.files?.[0]
+      if (!f) return
+      const reader = new FileReader()
+      reader.onload = () => handleBVHFile(reader.result, f.name)
+      reader.readAsText(f)
+    })
+    file.addEventListener('change', (e) => {
+      const f = e.target.files?.[0]
+      if (!f) return
+      const reader = new FileReader()
+      reader.onload = () => handleBVHFile(reader.result, f.name)
+      reader.readAsText(f)
+    })
+
+    playBtn.addEventListener('click', () => { 
+      isPlaying = true
+      mixers.forEach((m) => m.timeScale = parseFloat(speedInput.value))
+    })
+    pauseBtn.addEventListener('click', () => { 
+      isPlaying = false
+      mixers.forEach((m) => m.timeScale = 0)
+    })
+    stopBtn.addEventListener('click', () => { 
+      isPlaying = false
+      currentTime = 0
+      if (bvhClip) applyBVHFrame(0)
+      mixers.forEach((m) => m.stopAllAction())
+    })
+    // Also reset time to start for all mixers
+    stopBtn.addEventListener('click', () => { mixers.forEach((m) => { m.time = 0 }) })
+
+    speedInput.addEventListener('input', () => { mixers.forEach((m) => m.timeScale = parseFloat(speedInput.value)) })  </script>
+</body>
+</html>
